@@ -1,0 +1,75 @@
+{
+  "maxCostUsd": 0,
+  "agent": {
+    "name": "Kilo CLI",
+    "package": "@kilocode/cli",
+    "model": "kilo/kilo-auto/free"
+  },
+  "blockedEnvironmentPrefixes": [
+    "ANTHROPIC_",
+    "CLAUDE_CODE_",
+    "CODEX_",
+    "OPENAI_"
+  ],
+  "blockedEnvironmentNames": [
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "CLAUDE_API_KEY"
+  ],
+  "blockedHosts": [
+    "api.anthropic.com",
+    "api.openai.com"
+  ],
+  "route": [
+    {
+      "id": "kilo-auto-free",
+      "label": "Kilo Auto Free",
+      "model": "kilo/kilo-auto/free",
+      "free": true,
+      "credentialEnv": null,
+      "costUsd": 0,
+      "role": "primary-agent-router"
+    },
+    {
+      "id": "nvidia-build-free",
+      "label": "NVIDIA Build/NIM free endpoints",
+      "credentialEnv": "NVIDIA_API_KEY",
+      "free": true,
+      "costUsd": 0,
+      "role": "configured-fallback"
+    },
+    {
+      "id": "gemini-free",
+      "label": "Google Gemini API free tier",
+      "credentialEnv": "GEMINI_API_KEY",
+      "free": true,
+      "costUsd": 0,
+      "role": "configured-fallback"
+    },
+    {
+      "id": "cerebras-free",
+      "label": "Cerebras Inference free tier",
+      "credentialEnv": "CEREBRAS_API_KEY",
+      "free": true,
+      "costUsd": 0,
+      "role": "configured-fallback"
+    },
+    {
+      "id": "groq-free",
+      "label": "Groq free tier",
+      "credentialEnv": "GROQ_API_KEY",
+      "free": true,
+      "costUsd": 0,
+      "role": "configured-fallback"
+    },
+    {
+      "id": "openrouter-free",
+      "label": "OpenRouter Free Models Router",
+      "model": "openrouter/free",
+      "credentialEnv": "OPENROUTER_API_KEY",
+      "free": true,
+      "costUsd": 0,
+      "role": "configured-fallback"
+    }
+  ]
+}

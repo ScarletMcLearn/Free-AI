@@ -1,0 +1,6 @@
+.env
+node_modules/
+artifacts/logs/*.log
+artifacts/doctor/*.json
+artifacts/fallback-tests/*.json
+.runtime/

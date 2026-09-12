@@ -1,0 +1,18 @@
+{
+  "name": "free-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Repo-contained free-only cloud coding-agent launcher.",
+  "type": "module",
+  "scripts": {
+    "doctor": "node src/doctor.mjs",
+    "test": "node src/fallback-test.mjs",
+    "free-ai": "node src/free-ai.mjs"
+  },
+  "dependencies": {
+    "@kilocode/cli": "latest"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
