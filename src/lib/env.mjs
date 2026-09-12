@@ -47,7 +47,8 @@ export function configuredProviders(env = loadDotEnv()) {
   const cfg = readProviderConfig();
   return cfg.route.filter((provider) => {
     if (provider.free !== true || provider.costUsd !== 0) return false;
-    return !provider.credentialEnv || Boolean(env[provider.credentialEnv]);
+    const required = Array.isArray(provider.credentialEnvs) ? provider.credentialEnvs : (provider.credentialEnv ? [provider.credentialEnv] : []);
+    return required.every((name) => Boolean(env[name]));
   });
 }
 

@@ -30,17 +30,11 @@
       "credentialEnv": "KILO_API_KEY",
       "free": true,
       "costUsd": 0,
-      "role": "primary-agent-router"
-    },
-    {
-      "id": "nvidia",
-      "label": "NVIDIA",
-      "baseUrl": "https://integrate.api.nvidia.com/v1",
-      "model": "openai/gpt-oss-120b",
-      "credentialEnv": "NVIDIA_API_KEY",
-      "free": true,
-      "costUsd": 0,
-      "role": "optional-disabled-unless-configured"
+      "priority": 0,
+      "role": "primary-agent-router",
+      "toolCall": true,
+      "stream": true,
+      "quotaPool": "kilo"
     },
     {
       "id": "gemini",
@@ -50,7 +44,60 @@
       "credentialEnv": "GEMINI_API_KEY",
       "free": true,
       "costUsd": 0,
-      "role": "runtime-fallback"
+      "priority": 10,
+      "role": "runtime-fallback",
+      "toolCall": true,
+      "stream": true,
+      "quotaPool": "gemini"
+    },
+    {
+      "id": "cohere",
+      "label": "Cohere",
+      "baseUrl": "https://api.cohere.ai/compatibility/v1",
+      "model": "north-mini-code-1-0",
+      "credentialEnv": "COHERE_API_KEY",
+      "free": true,
+      "costUsd": 0,
+      "priority": 20,
+      "role": "runtime-fallback",
+      "toolCall": true,
+      "stream": true,
+      "quotaPool": "cohere",
+      "freeNote": "Free until rate limits for trial and production keys."
+    },
+    {
+      "id": "mistral",
+      "label": "Mistral",
+      "baseUrl": "https://api.mistral.ai/v1",
+      "model": "mistral-small-2603",
+      "credentialEnv": "MISTRAL_API_KEY",
+      "free": true,
+      "costUsd": 0,
+      "priority": 30,
+      "role": "runtime-fallback",
+      "toolCall": true,
+      "stream": true,
+      "quotaPool": "mistral",
+      "freeNote": "Use only accounts/keys constrained to Mistral Free Mode."
+    },
+    {
+      "id": "cloudflare",
+      "label": "Cloudflare",
+      "baseUrl": "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1",
+      "model": "@cf/zai-org/glm-4.7-flash",
+      "credentialEnv": "CLOUDFLARE_API_TOKEN",
+      "credentialEnvs": [
+        "CLOUDFLARE_API_TOKEN",
+        "CLOUDFLARE_ACCOUNT_ID"
+      ],
+      "free": true,
+      "costUsd": 0,
+      "priority": 40,
+      "role": "runtime-fallback",
+      "toolCall": true,
+      "stream": true,
+      "quotaPool": "cloudflare-workers-ai",
+      "freeNote": "Workers AI Free allocation; Cloudflare Workers AI models share same account allocation."
     },
     {
       "id": "cerebras",
@@ -60,7 +107,11 @@
       "credentialEnv": "CEREBRAS_API_KEY",
       "free": true,
       "costUsd": 0,
-      "role": "runtime-fallback"
+      "priority": 50,
+      "role": "runtime-fallback",
+      "toolCall": true,
+      "stream": true,
+      "quotaPool": "cerebras"
     },
     {
       "id": "groq",
@@ -70,7 +121,41 @@
       "credentialEnv": "GROQ_API_KEY",
       "free": true,
       "costUsd": 0,
-      "role": "runtime-fallback"
+      "priority": 60,
+      "role": "runtime-fallback",
+      "toolCall": true,
+      "stream": true,
+      "quotaPool": "groq"
+    },
+    {
+      "id": "sambanova",
+      "label": "SambaNova",
+      "baseUrl": "https://api.sambanova.ai/v1",
+      "model": "DeepSeek-V3.2",
+      "credentialEnv": "SAMBANOVA_API_KEY",
+      "free": true,
+      "costUsd": 0,
+      "priority": 70,
+      "role": "runtime-fallback",
+      "toolCall": true,
+      "stream": true,
+      "quotaPool": "sambanova",
+      "freeNote": "Free tier models share same SambaNova account quota."
+    },
+    {
+      "id": "sambanova-gpt-oss",
+      "label": "SambaNova GPT-OSS",
+      "baseUrl": "https://api.sambanova.ai/v1",
+      "model": "gpt-oss-120b",
+      "credentialEnv": "SAMBANOVA_API_KEY",
+      "free": true,
+      "costUsd": 0,
+      "priority": 71,
+      "role": "same-provider-model-fallback",
+      "toolCall": true,
+      "stream": true,
+      "quotaPool": "sambanova",
+      "freeNote": "Same SambaNova account quota as DeepSeek-V3.2."
     },
     {
       "id": "openrouter",
@@ -80,7 +165,25 @@
       "credentialEnv": "OPENROUTER_API_KEY",
       "free": true,
       "costUsd": 0,
-      "role": "runtime-fallback"
+      "priority": 90,
+      "role": "runtime-fallback",
+      "toolCall": true,
+      "stream": true,
+      "quotaPool": "openrouter-free"
+    },
+    {
+      "id": "nvidia",
+      "label": "NVIDIA",
+      "baseUrl": "https://integrate.api.nvidia.com/v1",
+      "model": "openai/gpt-oss-120b",
+      "credentialEnv": "NVIDIA_API_KEY",
+      "free": true,
+      "costUsd": 0,
+      "priority": 100,
+      "role": "optional-disabled-unless-configured",
+      "toolCall": true,
+      "stream": true,
+      "quotaPool": "nvidia"
     }
   ],
   "retryableStatusCodes": [408, 429, 500, 502, 503, 504],
@@ -95,7 +198,8 @@
     "gateway outage",
     "timeout",
     "timed out",
-    "overloaded"
+    "overloaded",
+    "out of capacity"
   ],
   "maxAttemptsPerProvider": 2,
   "requestTimeoutMs": 120000

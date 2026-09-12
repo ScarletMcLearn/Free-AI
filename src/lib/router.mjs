@@ -5,19 +5,31 @@ import { loadDotEnv, readProviderConfig } from "./env.mjs";
 export function classifyProviderError(status, bodyText, cfg = readProviderConfig()) {
   const text = String(bodyText || "").toLowerCase();
   if (cfg.retryableStatusCodes.includes(Number(status))) return "retryable";
-  if (["400", "401", "403"].includes(String(status))) return "configuration";
+  if (["400", "401", "402", "403"].includes(String(status))) return "configuration";
   if (cfg.retryableText.some((needle) => text.includes(needle))) return "retryable";
   return "fatal";
 }
 
 export function runtimeRoute(env = loadDotEnv(), includeUnconfigured = false, cfg = readProviderConfig()) {
+  const forcedProvider = env.FREE_AI_FORCE_PROVIDER || "";
   return cfg.route
     .filter((provider) => provider.free === true && provider.costUsd === 0)
+    .filter((provider) => !forcedProvider || provider.id === forcedProvider)
     .map((provider) => ({
       ...provider,
-      configured: !provider.credentialEnv || Boolean(env[provider.credentialEnv])
+      configured: requiredEnv(provider).every((name) => Boolean(env[name]))
     }))
     .filter((provider) => includeUnconfigured || provider.configured);
+}
+
+export function requiredEnv(provider) {
+  if (Array.isArray(provider.credentialEnvs)) return provider.credentialEnvs;
+  return provider.credentialEnv ? [provider.credentialEnv] : [];
+}
+
+function providerBaseUrl(provider, env) {
+  const raw = provider.baseUrl || "";
+  return raw.replace(/\$\{([A-Z0-9_]+)\}/g, (_, name) => encodeURIComponent(env[name] || ""));
 }
 
 function providerRequestBody(provider, payload) {
@@ -43,6 +55,26 @@ function shouldCooldown(status, kind, bodyText) {
     || text.includes("temporary capacity");
 }
 
+function retryAfterMs(response) {
+  const raw = response.headers.get("retry-after");
+  if (!raw) return null;
+  const seconds = Number(raw);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+  const date = Date.parse(raw);
+  if (Number.isFinite(date)) return Math.max(0, date - Date.now());
+  return null;
+}
+
+function cooldownKey(provider) {
+  return provider.quotaPool || provider.id;
+}
+
+function cooldownUntil(status, kind, response = null) {
+  if (kind === "configuration") return Infinity;
+  if (Number(status) === 429) return Date.now() + (response ? retryAfterMs(response) ?? 60000 : 60000);
+  return Date.now() + 60000;
+}
+
 function readJson(req) {
   return new Promise((resolve, reject) => {
     let body = "";
@@ -64,11 +96,12 @@ function readJson(req) {
 
 async function callProvider(provider, payload, env, signal) {
   const body = providerRequestBody(provider, payload);
-  const response = await fetch(`${provider.baseUrl.replace(/\/$/, "")}/chat/completions`, {
+  const credentialName = requiredEnv(provider)[0];
+  const response = await fetch(`${providerBaseUrl(provider, env).replace(/\/$/, "")}/chat/completions`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "authorization": `Bearer ${env[provider.credentialEnv] || ""}`,
+      "authorization": `Bearer ${env[credentialName] || ""}`,
       "http-referer": "https://local.free-ai.invalid",
       "x-title": "free-ai"
     },
@@ -108,11 +141,16 @@ export function createFreeRouter({ env = loadDotEnv(), onAttempt = () => {}, cfg
       const route = runtimeRoute(env, false, cfg);
       const failures = [];
       for (const provider of route) {
-        if (unavailable.has(provider.id)) {
-          const reason = unavailable.get(provider.id);
-          failures.push({ provider: provider.id, model: provider.model, status: "skipped", kind: reason.kind, body: reason.body });
-          onAttempt({ provider, attempt: 0, status: "skipped", result: reason.kind });
-          continue;
+        const key = cooldownKey(provider);
+        if (unavailable.has(key)) {
+          const reason = unavailable.get(key);
+          if (reason.until !== Infinity && reason.until <= Date.now()) {
+            unavailable.delete(key);
+          } else {
+            failures.push({ provider: provider.id, model: provider.model, status: "skipped", kind: reason.kind, body: reason.body });
+            onAttempt({ provider, attempt: 0, status: "skipped", result: reason.kind });
+            continue;
+          }
         }
         for (let attempt = 1; attempt <= cfg.maxAttemptsPerProvider; attempt += 1) {
           const controller = new AbortController();
@@ -134,14 +172,14 @@ export function createFreeRouter({ env = loadDotEnv(), onAttempt = () => {}, cfg
             const kind = classifyProviderError(response.status, text, cfg);
             failures.push({ provider: provider.id, model: provider.model, status: response.status, kind, body: text.slice(0, 500) });
             onAttempt({ provider, attempt, status: response.status, result: kind });
-            if (shouldCooldown(response.status, kind, text)) unavailable.set(provider.id, { kind, body: text.slice(0, 200) });
+            if (shouldCooldown(response.status, kind, text)) unavailable.set(key, { kind, body: text.slice(0, 200), until: cooldownUntil(response.status, kind, response) });
             if (kind !== "retryable") break;
           } catch (error) {
             clearTimeout(timeout);
             const kind = error.name === "AbortError" ? "retryable" : classifyProviderError(503, error.message, cfg);
             failures.push({ provider: provider.id, model: provider.model, status: error.name || "error", kind, body: error.message });
             onAttempt({ provider, attempt, status: error.name || "error", result: kind });
-            if (shouldCooldown(503, kind, error.message)) unavailable.set(provider.id, { kind, body: error.message.slice(0, 200) });
+            if (shouldCooldown(503, kind, error.message)) unavailable.set(key, { kind, body: error.message.slice(0, 200), until: cooldownUntil(503, kind) });
             if (kind !== "retryable") break;
           }
         }

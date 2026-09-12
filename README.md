@@ -31,9 +31,10 @@ Open a new PowerShell after changing PATH.
 Free-only guardrails:
 
 - `free-ai` launches repo-local Kilo CLI and points it at a repo-local OpenAI-compatible router.
-- The router tries `kilo/kilo-auto/free` first when configured, then only configured free providers: Gemini `gemini-3.6-flash`, Cerebras, Groq, OpenRouter Free, then STOP.
-- NVIDIA is optional and skipped when `NVIDIA_API_KEY` is absent.
+- The router tries `kilo/kilo-auto/free` first when configured, then only configured free providers: Gemini, Cohere, Mistral, Cloudflare Workers AI, Cerebras, Groq, SambaNova, OpenRouter Free, then STOP.
+- NVIDIA is supported but optional and skipped when `NVIDIA_API_KEY` is absent.
 - OpenRouter uses `openrouter/free` plus zero-price routing caps; `openrouter/auto:free` is not used.
+- Cloudflare uses only Workers AI `@cf/` models, not AI Gateway third-party paid routing.
 - `MAX_COST_USD=0`.
 - Paid env vars such as `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `CLAUDE_CODE_*`, and `CODEX_*` are removed only for the child process.
 - Runtime/config/log output is forced into this repo under `.runtime/` and `artifacts/`.
@@ -59,6 +60,14 @@ Safe live fallback test, using the first configured free provider after an inten
 
 ```powershell
 free-ai-test --live
+```
+
+Force that live fallback test to one configured provider:
+
+```powershell
+$env:FREE_AI_TEST_PROVIDER = "cohere"
+free-ai-test --live
+Remove-Item Env:\FREE_AI_TEST_PROVIDER
 ```
 
 If every configured free provider fails, `free-ai` stops with:

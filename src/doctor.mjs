@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { ensureDirs, loadDotEnv, mask, readProviderConfig, repoRoot, sanitizedEnvironment, buildKiloConfig } from "./lib/env.mjs";
-import { runtimeRoute } from "./lib/router.mjs";
+import { requiredEnv, runtimeRoute } from "./lib/router.mjs";
 
 ensureDirs();
 const cfg = readProviderConfig();
@@ -19,13 +19,31 @@ const paidStillPresent = [
 ].filter((k) => Object.hasOwn(env, k));
 
 async function liveStatus(provider) {
-  if (provider.credentialEnv && !dotEnv[provider.credentialEnv]) return "-";
+  if (!requiredEnv(provider).every((name) => Boolean(dotEnv[name]))) return "-";
   if (!provider.baseUrl) return "UNKNOWN";
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000);
   try {
-    const response = await fetch(`${provider.baseUrl.replace(/\/$/, "")}/models`, {
-      headers: { authorization: `Bearer ${dotEnv[provider.credentialEnv] || ""}` },
+    const body = {
+      model: provider.id === "openrouter" ? "openrouter/free" : provider.model,
+      messages: [{ role: "user", content: "Reply with exactly: OK" }],
+      max_tokens: 4,
+      stream: false
+    };
+    if (provider.id === "openrouter") {
+      body.provider = { max_price: { prompt: 0, completion: 0, request: 0, image: 0 } };
+    }
+    const baseUrl = provider.baseUrl.replace(/\$\{([A-Z0-9_]+)\}/g, (_, name) => encodeURIComponent(dotEnv[name] || ""));
+    const credentialName = requiredEnv(provider)[0];
+    const response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${dotEnv[credentialName] || ""}`,
+        "http-referer": "https://local.free-ai.invalid",
+        "x-title": "free-ai"
+      },
+      body: JSON.stringify(body),
       signal: controller.signal
     });
     clearTimeout(timeout);
@@ -47,10 +65,11 @@ for (const p of cfg.route) {
     label: p.label,
     model: p.model || null,
     supported: p.free === true && p.costUsd === 0 && Boolean(p.baseUrl),
-    configured: p.credentialEnv ? Boolean(dotEnv[p.credentialEnv]) : true,
+    configured: requiredEnv(p).every((name) => Boolean(dotEnv[name])),
     live: p.id === "nvidia" && !dotEnv[p.credentialEnv] ? "SKIPPED" : await liveStatus(p),
     credentialEnv: p.credentialEnv || null,
-    credential: p.credentialEnv ? mask(dotEnv[p.credentialEnv]) : null,
+    credentialEnvs: requiredEnv(p),
+    credential: requiredEnv(p).map((name) => `${name}=${mask(dotEnv[name]) || ""}`),
     costUsd: p.costUsd
   });
 }
@@ -66,7 +85,10 @@ const report = {
   paidProvidersDisabled: paidStillPresent.length === 0,
   paidVarsStillPresent: paidStillPresent,
   route: routeRows,
-  actualRuntimeRoute: runtimeRoute(dotEnv).map((p) => ({ id: p.id, label: p.label, model: p.model }))
+  configuredRuntimeRoute: runtimeRoute(dotEnv).map((p) => ({ id: p.id, label: p.label, model: p.model })),
+  currentlyHealthyRoute: routeRows
+    .filter((p) => p.supported && p.configured && p.live === "YES")
+    .map((p) => ({ id: p.id, label: p.label, model: p.model }))
 };
 
 const kiloConfig = buildKiloConfig("http://127.0.0.1:1");
@@ -86,17 +108,20 @@ fs.writeFileSync(outPath, JSON.stringify(report, null, 2));
 
 console.log("FREE AI STATUS\n");
 console.log(`Agent                     ${report.agentReady ? "READY" : "MISSING: run pnpm install"}`);
-console.log("Provider                  Supported   Configured   Live");
-console.log("--------------------------------------------------------");
+console.log("Provider                  Supported   Configured   Live             Model");
+console.log("----------------------------------------------------------------------------");
 for (const p of report.route) {
-  console.log(`${p.label.padEnd(25)} ${(p.supported ? "YES" : "NO").padEnd(11)} ${(p.configured ? "YES" : "NO").padEnd(12)} ${p.live}`);
+  console.log(`${p.label.padEnd(25)} ${(p.supported ? "YES" : "NO").padEnd(11)} ${(p.configured ? "YES" : "NO").padEnd(12)} ${String(p.live).padEnd(16)} ${p.model || "-"}`);
 }
 console.log(`\nPaid providers             ${report.paidProvidersDisabled ? "DISABLED" : "LEAKED: " + report.paidVarsStillPresent.join(", ")}`);
 console.log(`Free-only config           ${report.freeOnlyConfigValid ? "PASS" : "FAIL"}`);
 console.log(`Kilo config guard          ${report.kiloConfigFreeOnly ? "PASS" : "FAIL"}`);
 console.log(`Runtime inside repo        ${report.workspaceRuntimeInsideRepo ? "PASS" : "FAIL"}`);
-console.log("Actual runtime route");
-report.actualRuntimeRoute.forEach((p, i) => console.log(`${i + 1}. ${p.label} / ${p.model}`));
+console.log("Configured route");
+report.configuredRuntimeRoute.forEach((p, i) => console.log(`${i + 1}. ${p.label} / ${p.model}`));
+console.log("Currently healthy route");
+if (report.currentlyHealthyRoute.length === 0) console.log("-");
+report.currentlyHealthyRoute.forEach((p, i) => console.log(`${i + 1}. ${p.label} / ${p.model}`));
 console.log(`Report                     ${outPath}`);
 
 if (!report.agentReady || !report.paidProvidersDisabled || !report.freeOnlyConfigValid || !report.kiloConfigFreeOnly || !report.workspaceRuntimeInsideRepo) process.exit(1);
