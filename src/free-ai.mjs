@@ -2,11 +2,12 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { ensureDirs, repoRoot, sanitizedEnvironment } from "./lib/env.mjs";
+import { createFreeRouter, listen, runtimeRoute } from "./lib/router.mjs";
 
 ensureDirs();
 
 const callerCwd = process.env.FREE_AI_CALLER_CWD || process.cwd();
-const env = sanitizedEnvironment();
+let env = sanitizedEnvironment();
 const kiloCmd = process.platform === "win32"
   ? path.join(repoRoot, "node_modules", ".bin", "kilo.cmd")
   : path.join(repoRoot, "node_modules", ".bin", "kilo");
@@ -25,10 +26,30 @@ if (passthrough.includes("--free-ai-check")) {
     repoRoot,
     workspace: callerCwd,
     model: env.FREE_AI_MODEL,
+    primaryModel: env.FREE_AI_PRIMARY_MODEL,
+    route: runtimeRoute(env, true).map((provider) => ({
+      id: provider.id,
+      label: provider.label,
+      model: provider.model,
+      configured: provider.configured
+    })),
     maxCostUsd: env.MAX_COST_USD,
     appdata: env.APPDATA
   }, null, 2));
   process.exit(0);
+}
+
+let router = null;
+if (!passthrough.includes("--version") && !passthrough.includes("-v") && !passthrough.includes("--help") && !passthrough.includes("-h")) {
+  router = createFreeRouter({
+    env,
+    onAttempt: ({ provider, attempt, status, result }) => {
+      fs.appendFileSync(logFile, `router provider=${provider.id} model=${provider.model} attempt=${attempt} status=${status} result=${result || "start"}\n`);
+    }
+  });
+  const routerUrl = await listen(router);
+  env = sanitizedEnvironment({ FREE_AI_ROUTER_URL: routerUrl });
+  fs.appendFileSync(logFile, `router url=${routerUrl}\nroute=${runtimeRoute(env).map((p) => `${p.id}/${p.model}`).join(" -> ")}\n`);
 }
 let args;
 if (passthrough.includes("--version") || passthrough.includes("-v") || passthrough.includes("--help") || passthrough.includes("-h")) {
@@ -46,6 +67,7 @@ const child = spawn(kiloCmd, args, {
 });
 
 child.on("exit", (code, signal) => {
+  if (router) router.close();
   if (signal) {
     fs.appendFileSync(logFile, `exit signal=${signal}\n`);
     process.kill(process.pid, signal);

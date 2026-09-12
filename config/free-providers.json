@@ -3,7 +3,8 @@
   "agent": {
     "name": "Kilo CLI",
     "package": "@kilocode/cli",
-    "model": "kilo/kilo-auto/free"
+    "model": "free-ai-router/free-ai-auto",
+    "primaryModel": "kilo/kilo-auto/free"
   },
   "blockedEnvironmentPrefixes": [
     "ANTHROPIC_",
@@ -25,51 +26,77 @@
       "id": "kilo-auto-free",
       "label": "Kilo Auto Free",
       "model": "kilo/kilo-auto/free",
+      "baseUrl": "https://api.kilo.ai/api/gateway",
+      "credentialEnv": "KILO_API_KEY",
       "free": true,
-      "credentialEnv": null,
       "costUsd": 0,
       "role": "primary-agent-router"
     },
     {
-      "id": "nvidia-build-free",
-      "label": "NVIDIA Build/NIM free endpoints",
+      "id": "nvidia",
+      "label": "NVIDIA",
+      "baseUrl": "https://integrate.api.nvidia.com/v1",
+      "model": "openai/gpt-oss-120b",
       "credentialEnv": "NVIDIA_API_KEY",
       "free": true,
       "costUsd": 0,
-      "role": "configured-fallback"
+      "role": "optional-disabled-unless-configured"
     },
     {
-      "id": "gemini-free",
-      "label": "Google Gemini API free tier",
+      "id": "gemini",
+      "label": "Gemini",
+      "baseUrl": "https://generativelanguage.googleapis.com/v1beta/openai",
+      "model": "gemini-3.6-flash",
       "credentialEnv": "GEMINI_API_KEY",
       "free": true,
       "costUsd": 0,
-      "role": "configured-fallback"
+      "role": "runtime-fallback"
     },
     {
-      "id": "cerebras-free",
-      "label": "Cerebras Inference free tier",
+      "id": "cerebras",
+      "label": "Cerebras",
+      "baseUrl": "https://api.cerebras.ai/v1",
+      "model": "gpt-oss-120b",
       "credentialEnv": "CEREBRAS_API_KEY",
       "free": true,
       "costUsd": 0,
-      "role": "configured-fallback"
+      "role": "runtime-fallback"
     },
     {
-      "id": "groq-free",
-      "label": "Groq free tier",
+      "id": "groq",
+      "label": "Groq",
+      "baseUrl": "https://api.groq.com/openai/v1",
+      "model": "openai/gpt-oss-120b",
       "credentialEnv": "GROQ_API_KEY",
       "free": true,
       "costUsd": 0,
-      "role": "configured-fallback"
+      "role": "runtime-fallback"
     },
     {
-      "id": "openrouter-free",
-      "label": "OpenRouter Free Models Router",
+      "id": "openrouter",
+      "label": "OpenRouter Free Only",
+      "baseUrl": "https://openrouter.ai/api/v1",
       "model": "openrouter/free",
       "credentialEnv": "OPENROUTER_API_KEY",
       "free": true,
       "costUsd": 0,
-      "role": "configured-fallback"
+      "role": "runtime-fallback"
     }
-  ]
+  ],
+  "retryableStatusCodes": [408, 429, 500, 502, 503, 504],
+  "retryableText": [
+    "quota exhausted",
+    "rate limited",
+    "rate-limit",
+    "temporarily unavailable",
+    "temporary capacity",
+    "capacity failure",
+    "no available free model",
+    "gateway outage",
+    "timeout",
+    "timed out",
+    "overloaded"
+  ],
+  "maxAttemptsPerProvider": 2,
+  "requestTimeoutMs": 120000
 }

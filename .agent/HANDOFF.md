@@ -1,102 +1,90 @@
-<!-- CODEX-HANDOFF:COMPLETE -->
+<!-- CODEX-HANDOFF:ACTIVE -->
 
 # Codex Agent Handover
 
 ## Objective
 
-Implement repo-contained ree-ai, ree-ai-doctor, ree-ai-test Windows commands for a free-only cloud coding agent. Preserve caller cwd as workspace. Keep all persistent files inside this repo except adding repo in to Windows USER PATH.
+Finish, validate, and harden repo-local FREE-only runtime routing in `H:\Projects\AI\Free-AI\Free-AI` without exposing `.env` secrets.
 
 ## Current status
 
-Complete. Repo-local Kilo CLI installed. Launchers created. USER PATH updated with H:\Projects\AI\Free-AI\Free-AI\bin. New PowerShell sessions can resolve commands globally. Live Kilo free model smoke test succeeded.
+Initial inspection complete. `.env` is ignored (`!! .env`) and not tracked by `git ls-files`. Existing user/previous-agent changes already present across target files. OpenRouter config currently unsafe because `openrouter/auto:free` can select paid models per OpenRouter docs; must switch to `openrouter/free` and add request guard.
 
 ## Completed work
 
-- Researched current official docs for Kilo Auto Free, Kilo CLI, Gemini, Cerebras, Groq, OpenRouter, NVIDIA NIM.
-- Chose Kilo CLI as open-source coding-agent harness.
-- Correct installed model ID is kilo/kilo-auto/free; Kilo output displays kilo-auto/free.
-- Added process env isolation for paid vars (ANTHROPIC_*, OPENAI_*, CLAUDE_CODE_*, CODEX_*) without deleting global credentials.
-- Forced runtime dirs into repo .runtime/ via APPDATA, LOCALAPPDATA, HOME, XDG_* vars.
-- Added KILO_CONFIG_CONTENT guard with main and small model set to kilo/kilo-auto/free, paid providers disabled, permissions ask.
-- Added doctor and deterministic simulated fallback test.
-- Added docs and .env.example; .env gitignored.
-- Added repo in to USER PATH preserving existing entries.
+- Read caveman skill.
+- Read pasted request.
+- Inspected target files only: `src/lib/router.mjs`, `src/free-ai.mjs`, `src/doctor.mjs`, `src/fallback-test.mjs`, `src/lib/env.mjs`, `config/free-providers.json`, `.env.example`, `README.md`, `docs/free-providers.md`, `package.json`.
+- Confirmed `.env`, `.runtime/`, `artifacts/`, `node_modules/` ignored.
+- Checked official/current docs through web for Gemini, Cerebras, Groq, OpenRouter.
 
 ## Files changed
 
-- package.json: repo package, scripts, @kilocode/cli dependency.
-- pnpm-lock.yaml: dependency lock.
-- .gitignore: ignores .env, 
-ode_modules, .runtime, generated artifact JSON/logs.
-- .env.example: free-provider credential template.
-- config/free-providers.json: free route and denylist config.
-- src/lib/env.mjs: env loader, sanitization, repo-contained runtime vars, Kilo config injection.
-- src/free-ai.mjs: launches Kilo from caller cwd with kilo/kilo-auto/free; supports un, --version, and --free-ai-check.
-- src/doctor.mjs: status, paid isolation, free-only config checks.
-- src/fallback-test.mjs: deterministic mock 429 -> next provider pass.
-- in/*.ps1, in/*.cmd: command launchers.
-- docs/free-providers.md: sources, route, privacy notes.
-- README.md: install and usage.
-- .agent/HANDOFF.md: operational checkpoint.
+- `.agent/HANDOFF.md`: checkpoint only.
 
 ## Commands and tests run
 
-- pnpm install: installed @kilocode/cli 7.6.2 repo-local.
-- pnpm run doctor: PASS.
-- pnpm run test: PASS.
-- & .\bin\free-ai.ps1 --version: printed 7.6.2.
-- & .\Free-AI\bin\free-ai.ps1 --free-ai-check from parent dir: confirmed workspace equals caller cwd and appdata inside repo.
-- & .\bin\free-ai.ps1 run "Reply with exactly: OK" outside sandbox: Kilo displayed code · kilo-auto/free and returned OK.
-- Get-Command claude,claude-nc,claude-mt,free-ai,free-ai-doctor,free-ai-test with PATH prepended: Claude commands still functions; free commands resolve to repo in.
+- `git rev-parse --show-toplevel` -> `H:/Projects/AI/Free-AI/Free-AI`.
+- `git status --short --ignored` -> target files modified/untracked, `.env` ignored.
+- `git ls-files .env .runtime artifacts src/lib/router.mjs .agent/HANDOFF.md` -> only `.agent/HANDOFF.md` tracked.
+- Multiple `Get-Content -Raw ...` inspections.
 
 ## Current failures or blockers
 
-None.
+- No implementation patch yet.
+- Need run `pnpm install`, syntax checks, doctor, tests, live provider tests.
+- Live network commands may need escalation if sandbox blocks network.
+- Real Kilo agent/tool test may depend on Kilo CLI behavior and free provider availability.
 
 ## Decisions and assumptions
 
-- Latest user instruction requiring repo-only storage overrides pasted older $HOME\.free-ai suggestion.
-- Kilo Auto Free provides actual model routing/failover among free models; custom fallback test simulates retryable 429 safely without consuming quota.
-- Direct provider keys are tracked as NOT CONFIGURED unless user fills .env.
-- No PowerShell $PROFILE changes made.
+- Keep Kilo Auto Free first only if configured; skip if no `KILO_API_KEY`.
+- NVIDIA remains optional and skipped when `NVIDIA_API_KEY` absent.
+- Route must never use `openrouter/auto:free`; use `openrouter/free` with `max_price` zero guard.
+- Preserve existing implementation shape; no broad rewrite.
+- Do not print `.env` values or provider keys.
 
 ## Exact next steps
 
-1. Open a new PowerShell so USER PATH refreshes.
-2. Run ree-ai-doctor.
-3. From any project, run ree-ai or ree-ai run "message".
+1. Patch `config/free-providers.json`: change OpenRouter model to `openrouter/free`.
+2. Patch `src/lib/router.mjs`: add free-only request guard (`max_price` for OpenRouter), provider cooldown for 429/quota/auth failures, deterministic exhaustion, and safe streaming behavior/limitation.
+3. Patch `src/doctor.mjs`: show NVIDIA skipped/not configured, validate free config including OpenRouter model.
+4. Patch `src/fallback-test.mjs`: add exhaustion test and stronger live forced fallback.
+5. Update docs/README for verified route and streaming limitation.
+6. Run `pnpm install`, `node --check` relevant `.mjs`, `free-ai-doctor`, `free-ai-test`, `free-ai-test --live`, provider smoke tests, Kilo agent/tool tests if feasible.
+7. Git safety scan changed files for key-like strings without printing secrets.
 
 ## Risks and warnings
 
-- Free providers can log/retain prompts differently; avoid confidential code unless provider terms are acceptable.
-- Kilo Auto Free docs say free model availability changes and partner providers may rate limit.
-- If all free providers are exhausted, expected behavior is stop/report, not paid fallback.
-- Do not stage/commit .agent/HANDOFF.md unless explicitly requested.
+- Never read/print `.env` raw.
+- Do not stage/commit `.env`, `.runtime`, `artifacts`, or secret logs.
+- Do not use Anthropic/OpenAI/Claude/Codex paid credentials.
+- OpenRouter `openrouter/auto:free` is paid-risk and must be removed.
+- Mid-stream provider switching can duplicate tool/mutation risk; fallback only before response/tool execution begins unless safely buffered.
 
 ## Repository state
 
-git status --short:
+`git status --short --ignored` showed:
 
-`	ext
+```text
+ M .agent/HANDOFF.md
+ M .env.example
  M README.md
-?? .agent/
-?? .env.example
-?? .gitignore
-?? bin/
-?? config/
-?? docs/
-?? package.json
-?? pnpm-lock.yaml
-?? src/
-`
+ M config/free-providers.json
+ M docs/free-providers.md
+ M src/doctor.mjs
+ M src/fallback-test.mjs
+ M src/free-ai.mjs
+ M src/lib/env.mjs
+?? src/lib/router.mjs
+!! .env
+!! .runtime/
+!! artifacts/
+!! node_modules/
+```
 
-git diff --stat:
-
-`	ext
- README.md | 39 +++++++++++++++++++++++++++++++++++++++
- 1 file changed, 39 insertions(+)
-`
+Diff stat not yet captured.
 
 ## Last updated
 
-2026-09-12T16:57:46.6536552+06:00
+2026-09-12T17:24:58.7189482+06:00
